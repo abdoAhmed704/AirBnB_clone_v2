@@ -1,31 +1,36 @@
 #!/usr/bin/env bash
-# Script that sets up your web servers for the deployment of web_static.
+# Setup of web servers for the deployment of web_static
 
-SITE_FILE=/etc/nginx/sites-available/default
-END_POINT='\n\n\tlocation /hbnb_static {\n\t\talias /data/web_static/current/;\n\t}\n'
-HTML_CONTENT=\
-"<html>
+if ! command -v nginx &>/dev/null; then
+    sudo apt-get update
+    sudo apt-get install nginx -y
+    sudo ufw allow 'Nginx HTTP'
+fi
+folders=("/data/" "/data/web_static/" "/data/web_static/releases/" "/data/web_static/shared/"
+"/data/web_static/releases/test/")
+
+for folder in "${folders[@]}"; do
+    if [ ! -d "$folder" ]; then
+        mkdir -p "$folder"
+    fi
+done
+
+echo "<html>
   <head>
   </head>
   <body>
     Holberton School
   </body>
-</html>"
+</html>" > /data/web_static/releases/test/index.html
 
-CHECK_HBNB=$(grep 'location /hbnb_static' < "$SITE_FILE")
+link_target="/data/web_static/releases/test/"
+link_name="/data/web_static/current"
 
-sudo apt-get -y update
-sudo apt-get -y upgrade
-sudo apt-get -y install nginx
-sudo mkdir -p '/data/web_static/releases/test/'
-sudo mkdir -p '/data/web_static/shared/'
-sudo touch '/data/web_static/releases/test/index.html'
-sudo ln -sf /data/web_static/releases/test /data/web_static/current
-sudo chown -R ubuntu:ubuntu /data/
-echo "$HTML_CONTENT" > '/data/web_static/releases/test/index.html'
-
-if [ -z "$CHECK_HBNB" ]; then
-	sudo sed -i "s@^\tserver_name _;@&$END_POINT@" $SITE_FILE
+if [ -L "$link_name" ]; then
+    rm -f "$link_name"
 fi
-
-sudo service nginx restart
+ln -s "$link_target" "$link_name"
+sudo chown -R ubuntu:ubuntu /data/
+sudo sed -i '/^[^#]*server_name.*;$/a \ \n\t\tlocation \/hbnb_static/ {\n\t\t\t\talias /data/web_static/current/;\n\t\t}' /etc/nginx/sites-available/default
+sudo service nginx start
+sudo nginx -s reload
